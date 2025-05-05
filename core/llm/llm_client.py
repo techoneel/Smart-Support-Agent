@@ -1,10 +1,8 @@
 from typing import Dict, Any, Optional, List
 import requests
 import json
-import os
 from langchain_core.language_models import BaseLLM
 from langchain_core.callbacks import CallbackManagerForLLMRun
-from langchain_core.outputs import GenerationChunk
 
 class LLMClient:
     """Client for interacting with various LLM providers."""

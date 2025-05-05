@@ -18,8 +18,10 @@ Smart Support Agent is a RAG (Retrieval Augmented Generation) system designed to
 
 ### Prerequisites
 
-- Python 3.9+
-- Required libraries (see `requirements.txt`)
+- [Python 3.9+](https://www.python.org/downloads/)
+- [`requirements.txt`](./requirements.txt) - Required python libraries
+- [Ollama 0.6.7+](https://ollama.com/download)
+- [llama2](https://ollama.com/library/llama2)
 
 ### Installation
 
@@ -49,20 +51,35 @@ Edit `config/settings.py` or use environment variables to configure:
 - Input/output channels
 - Logging preferences
 
+### Testing Environment
+
+When the setup is ready 
+
+- Tesing the configuration
+  ```bash
+  python cli_test.py config
+  ```
+- Testing llm with prompt
+  ```bash
+  python test_llm.py --prompt "What are the main features of a RAG system?"
+  ```
+
 ### Running the CLI Version
 
 ```bash
-python cli/main.py
+coming soon...
+# python cli/main.py
 ```
 
 ### Ingesting Documents
 
 ```bash
+coming soon...
 # Add PDFs to your knowledge base
-python -m core.ingestor.pdf_parser --path /path/to/your/docs
+# python -m core.ingestor.pdf_parser --path /path/to/your/docs
 
 # Scrape web content
-python -m core.ingestor.web_scraper --url https://your-documentation-site.com
+# python -m core.ingestor.web_scraper --url https://your-documentation-site.com
 ```
 
 ## Architecture
@@ -91,10 +108,10 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed information about the system
 
 ## Roadmap
 
-- [ ] CLI interface
+- [X] CLI interface
 - [ ] Text and PDF ingestion
 - [ ] Vector search with FAISS
-- [ ] LLM integration
+- [X] LLM integration
 - [ ] Feedback collection
 - [ ] WhatsApp integration
 - [ ] Custom web UI
