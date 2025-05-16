@@ -11,11 +11,25 @@ class LLMClient:
         """Initialize the LLM client.
         
         Args:
-            provider (str): The LLM provider ("together", "ollama", etc.)
+            provider (str): The LLM provider ("together", "ollama", or "openai")
             api_key (str): API key for the provider
             model (Optional[str]): Model name
+            
+        Raises:
+            ValueError: If provider is not supported or configuration is invalid
         """
-        self.provider = provider.lower()
+        provider = provider.lower()
+        if provider not in ["together", "ollama", "openai"]:
+            raise ValueError(
+                f"Unsupported provider: {provider}. "
+                "Supported providers are: together, ollama, openai"
+            )
+            
+        # Validate required configuration
+        if provider in ["together", "openai"] and not api_key:
+            raise ValueError(f"{provider} requires an API key")
+            
+        self.provider = provider
         self.api_key = api_key
         self.model = model
         
@@ -94,31 +108,52 @@ class LLMClient:
             
         Returns:
             str: The generated response
+            
+        Raises:
+            ValueError: If Ollama service is not running or model is not available
         """
         data = {
-            "model": self.model,
+            "model": self.model or "llama2",
             "prompt": prompt,
             "temperature": temperature,
             "num_predict": max_tokens
         }
         
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json=data
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"API call failed: {response.text}")
-        
-        # Parse streaming response
-        full_response = ""
-        for line in response.iter_lines():
-            if line:
-                chunk = json.loads(line.decode('utf-8'))
-                if "response" in chunk:
-                    full_response += chunk["response"]
-        
-        return full_response
+        try:
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json=data,
+                timeout=5  # Add timeout to fail fast if service is down
+            )
+            
+            if response.status_code == 404:
+                raise ValueError(f"Model '{self.model}' not found. Make sure to pull it first with 'ollama pull {self.model}'")
+            elif response.status_code != 200:
+                raise ValueError(f"API call failed: {response.text}")
+            
+            # Parse streaming response
+            full_response = ""
+            for line in response.iter_lines():
+                if line:
+                    chunk = json.loads(line.decode('utf-8'))
+                    if "response" in chunk:
+                        full_response += chunk["response"]
+                    elif "error" in chunk:
+                        raise ValueError(f"Ollama error: {chunk['error']}")
+            
+            return full_response
+            
+        except requests.exceptions.ConnectionError:
+            raise ValueError(
+                "Could not connect to Ollama service. Make sure Ollama is installed and running:\n"
+                "1. Install Ollama from https://ollama.com/download\n"
+                "2. Start the Ollama service\n"
+                "3. Pull the model with: ollama pull llama2"
+            )
+        except requests.exceptions.Timeout:
+            raise ValueError(
+                "Connection to Ollama service timed out. Make sure Ollama is running and responsive"
+            )
     
     def _call_openai(self, prompt: str, temperature: float, max_tokens: int) -> str:
         """Call OpenAI API.

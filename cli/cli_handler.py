@@ -1,7 +1,7 @@
 import click
 from typing import Optional
-from ..core.interface.input_handler import InputHandler
-from ..core.interface.output_handler import OutputHandler
+from core.interface.input_handler import InputHandler
+from core.interface.output_handler import OutputHandler
 
 
 class CLIInputHandler(InputHandler):

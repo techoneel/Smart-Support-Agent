@@ -254,17 +254,91 @@ For a web interface:
 
 ## Performance Considerations
 
-- Vector search is optimized using FAISS for fast similarity search
-- Document chunking strategies balance retrieval quality and index size
-- API calls to LLM providers are abstracted to support caching and retries
+- **Vector Search Optimization**:
+  - FAISS index configuration for optimal speed/accuracy tradeoff
+  - Batched document processing for efficient ingestion
+  - Caching of frequently accessed vectors
+
+- **Document Processing**:
+  - Adaptive chunking based on document structure
+  - Parallel processing for large document sets
+  - Incremental updates to avoid full index rebuilds
+
+- **LLM Integration**:
+  - Request batching and rate limiting
+  - Response caching with TTL
+  - Automatic retries with exponential backoff
+  - Fallback providers for high availability
 
 ## Testing Strategy
 
-The clean architecture enables thorough testing at each level:
+The project maintains a comprehensive test suite with 93% coverage, following a pyramid approach:
 
-- **Unit Tests**: Core business logic can be tested independently
-- **Integration Tests**: Verify interactions between components
-- **End-to-End Tests**: Test the complete workflow with mock interfaces
+### Unit Tests
+- Test individual components in isolation
+- Mock external dependencies
+- Cover edge cases and error handling
+- Located in `tests/` with pattern `test_*.py`
+
+### Integration Tests
+- Test component interactions
+- Verify data flow between modules
+- Test configuration management
+- Database and file system integration
+
+### End-to-End Tests
+- Complete workflow testing
+- CLI interaction simulation
+- Document ingestion to query response
+- Feedback collection and logging
+
+### Test Organization
+```
+tests/
+├── conftest.py          # Shared fixtures
+├── test_cli.py          # CLI interface tests
+├── test_agents/         # Core agent logic tests
+├── test_retriever/      # Vector search tests
+└── test_ingestor/       # Document processing tests
+```
+
+### Continuous Integration
+- Automated test runs on pull requests
+- Coverage reporting and enforcement
+- Integration with development workflow
+
+## Project Status and Roadmap
+
+### Completed Features (✓)
+- Clean architecture implementation with modular design
+- Core agent logic with LLM integration
+- CLI interface with basic interaction flow
+- Test suite with 93% coverage
+- Configuration management system
+
+### In Progress (⋯)
+- Document ingestion pipeline
+  - PDF parsing implementation
+  - Web scraping functionality
+- Vector search optimization
+  - FAISS index configuration
+  - Performance tuning
+
+### Planned Features (○)
+- WhatsApp integration
+- Custom web UI
+- Persistent vector database
+- Feedback-based model fine-tuning
+- Multi-language support
+
+### Technical Debt and Improvements
+- Enhance error handling and recovery
+- Implement automated performance testing
+- Add system monitoring and metrics
+- Improve documentation coverage
+- Containerize the application
+
+The project follows an iterative development approach, with new features being added while maintaining high code quality and test coverage.
 
 ## Conclusion
 

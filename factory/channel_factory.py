@@ -1,7 +1,7 @@
 from typing import Tuple
-from ..core.interface.input_handler import InputHandler
-from ..core.interface.output_handler import OutputHandler
-from ..cli.cli_handler import CLIInputHandler, CLIOutputHandler
+from core.interface.input_handler import InputHandler
+from core.interface.output_handler import OutputHandler
+from cli.cli_handler import CLIInputHandler, CLIOutputHandler
 
 
 class ChannelFactory:

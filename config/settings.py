@@ -39,17 +39,17 @@ class Config:
         self.llm_provider = llm_provider
         self.llm_api_key = llm_api_key
         self.llm_model = llm_model
-        self.vector_db_path = vector_db_path
-        self.feedback_log_path = feedback_log_path
+        self.vector_db_path = str(Path(vector_db_path)) if vector_db_path else None
+        self.feedback_log_path = str(Path(feedback_log_path)) if feedback_log_path else None
         self.embedding_dim = embedding_dim
         self.api_host = api_host
         self.api_port = api_port
         
-        # Create necessary directories
-        if self.feedback_log_path:
+        # Create necessary directories if paths are provided and valid
+        if self.feedback_log_path and os.path.dirname(self.feedback_log_path):
             os.makedirs(os.path.dirname(self.feedback_log_path), exist_ok=True)
         
-        if self.vector_db_path:
+        if self.vector_db_path and os.path.dirname(self.vector_db_path):
             os.makedirs(os.path.dirname(self.vector_db_path), exist_ok=True)
     
     @classmethod
@@ -81,7 +81,8 @@ class Config:
         Returns:
             Config: Configuration object
         """
-        with open(path, 'r') as f:
+        path = Path(path)
+        with path.open('r') as f:
             config_data = json.load(f)
         
         return cls(**config_data)
@@ -103,13 +104,15 @@ class Config:
             "api_host": self.api_host,
             "api_port": self.api_port
         }
-    
+
     def save(self, path: str) -> None:
-        """Save configuration to a file.
+        """Save configuration to a JSON file.
         
         Args:
-            path (str): Path to save the configuration to
+            path (str): Path where to save the configuration
         """
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as f:
+        path = Path(path)
+        if path.parent:
+            os.makedirs(path.parent, exist_ok=True)
+        with path.open('w') as f:
             json.dump(self.to_dict(), f, indent=2)
