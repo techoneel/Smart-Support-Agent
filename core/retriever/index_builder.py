@@ -34,7 +34,15 @@ class IndexBuilder:
             faiss.Index: The FAISS index
         """
         if os.path.exists(self.vector_db_path):
-            return faiss.read_index(self.vector_db_path)
+            index = faiss.read_index(self.vector_db_path)
+            # If the index dimension doesn't match our expected dimension,
+            # create a new index with the correct dimension
+            if index.d != self.embedding_dim:
+                print(f"Warning: Existing index has dimension {index.d}, but expected {self.embedding_dim}.")
+                print(f"Creating a new index with dimension {self.embedding_dim}.")
+                index = faiss.IndexFlatL2(self.embedding_dim)
+                faiss.write_index(index, self.vector_db_path)
+            return index
         else:
             index = faiss.IndexFlatL2(self.embedding_dim)
             faiss.write_index(index, self.vector_db_path)
@@ -62,17 +70,46 @@ class IndexBuilder:
             content (str): The document content
             metadata (Optional[dict]): Document metadata
         """
-        # Split document into chunks
-        chunks = self.text_splitter.split_text(content)
-        
-        # Get embeddings
-        embeddings = self._get_embeddings(chunks)
-        
-        # Add to index
-        self.index.add(embeddings)
-        
-        # Save index
-        faiss.write_index(self.index, self.vector_db_path)
+        try:
+            # Skip empty content
+            if not content or not content.strip():
+                print("Warning: Empty content provided. Skipping document.")
+                return
+                
+            # Split document into chunks
+            chunks = self.text_splitter.split_text(content)
+            
+            # Skip if no chunks were created
+            if not chunks:
+                print(f"Warning: No chunks created from document. Skipping.")
+                return
+            
+            # Get embeddings
+            embeddings = self._get_embeddings(chunks)
+            
+            # Verify dimensions match
+            if embeddings.shape[1] != self.index.d:
+                print(f"Warning: Embedding dimension mismatch. Expected {self.index.d}, got {embeddings.shape[1]}.")
+                # Resize embeddings to match index dimension
+                if embeddings.shape[1] > self.index.d:
+                    # Truncate to match
+                    print(f"Truncating embeddings from {embeddings.shape[1]} to {self.index.d} dimensions.")
+                    embeddings = embeddings[:, :self.index.d]
+                else:
+                    # Pad with zeros to match
+                    print(f"Padding embeddings from {embeddings.shape[1]} to {self.index.d} dimensions.")
+                    padding = np.zeros((embeddings.shape[0], self.index.d - embeddings.shape[1]), dtype=np.float32)
+                    embeddings = np.hstack((embeddings, padding))
+            
+            # Add to index
+            self.index.add(embeddings)
+            
+            # Save index
+            self.save()
+            
+        except Exception as e:
+            print(f"Error adding document to index: {str(e)}")
+            # Continue without failing the entire process
     
     def add_documents(self, documents: List[str], metadatas: Optional[List[dict]] = None) -> None:
         """Add multiple documents to the index.
@@ -81,17 +118,53 @@ class IndexBuilder:
             documents (List[str]): List of document contents
             metadatas (Optional[List[dict]]): List of document metadata
         """
-        # Process all documents
-        all_chunks = []
-        for doc in documents:
-            chunks = self.text_splitter.split_text(doc)
-            all_chunks.extend(chunks)
+        # Filter out empty documents
+        valid_docs = [doc for doc in documents if doc and doc.strip()]
+        if len(valid_docs) < len(documents):
+            print(f"Warning: Skipped {len(documents) - len(valid_docs)} empty documents.")
         
-        # Get embeddings for all chunks
-        embeddings = self._get_embeddings(all_chunks)
-        
-        # Add to index
-        self.index.add(embeddings)
-        
-        # Save index
-        faiss.write_index(self.index, self.vector_db_path)
+        if not valid_docs:
+            print("Warning: No valid documents to add.")
+            return
+            
+        try:
+            # Process all documents
+            all_chunks = []
+            for doc in valid_docs:
+                chunks = self.text_splitter.split_text(doc)
+                all_chunks.extend(chunks)
+            
+            if not all_chunks:
+                print("Warning: No chunks created from documents. Skipping.")
+                return
+                
+            # Get embeddings for all chunks
+            embeddings = self._get_embeddings(all_chunks)
+            
+            # Verify dimensions match
+            if embeddings.shape[1] != self.index.d:
+                print(f"Warning: Embedding dimension mismatch. Expected {self.index.d}, got {embeddings.shape[1]}.")
+                # Resize embeddings to match index dimension
+                if embeddings.shape[1] > self.index.d:
+                    # Truncate to match
+                    embeddings = embeddings[:, :self.index.d]
+                else:
+                    # Pad with zeros to match
+                    padding = np.zeros((embeddings.shape[0], self.index.d - embeddings.shape[1]), dtype=np.float32)
+                    embeddings = np.hstack((embeddings, padding))
+            
+            # Add to index
+            self.index.add(embeddings)
+            
+            # Save index
+            self.save()
+            
+        except Exception as e:
+            print(f"Error adding documents to index: {str(e)}")
+    
+    def save(self) -> None:
+        """Save the index to disk."""
+        try:
+            faiss.write_index(self.index, self.vector_db_path)
+        except Exception as e:
+            print(f"Error saving index: {str(e)}")

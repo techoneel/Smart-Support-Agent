@@ -1,35 +1,13 @@
-# Core dependencies
+click>=8.1.0
 numpy>=1.24.0
-faiss-cpu>=1.7.4  # Use faiss-gpu if you have a compatible GPU
+faiss-cpu>=1.7.4
 requests>=2.31.1
 python-dotenv>=1.0.4
-
-# CLI interface
-click>=8.1.0
-
-# Document processing
 unstructured>=0.14.3
 langchain-text-splitters>=0.0.1
 beautifulsoup4>=4.12.0
 pypdf>=3.17.0
-
-# LLM integration
 langchain-core>=0.1.7
 langchain-community>=0.3.0
-
-# Web scraping
 requests-html>=0.10.0
-
-# API framework (for future extensions)
-fastapi>=0.109.1
-uvicorn>=0.22.0
-pydantic>=2.3.1
-
-# Testing
-pytest>=7.3.0
-
-# Optional dependencies for more advanced features
-# uncomment as needed
-# sqlmodel>=0.0.8  # For structured feedback storage
-# qdrant-client>=1.4.0  # For persistent vector storage
-# sentence-transformers>=2.2.0  # For embeddings
+google-generativeai>=0.3.0

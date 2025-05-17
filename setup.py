@@ -23,5 +23,14 @@ setup(
             "pytest>=7.3.0",
             "pytest-cov>=4.1.0",
         ],
+        "dev": [
+            "pytest>=7.3.0",
+            "pytest-cov>=4.1.0",
+            "black>=23.3.0",
+            "flake8>=6.0.0",
+            "mypy>=1.3.0",
+            "jupyter>=1.0.0",
+        ],
     },
+    python_requires=">=3.9",
 )

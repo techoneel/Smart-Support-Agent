@@ -11,22 +11,22 @@ class LLMClient:
         """Initialize the LLM client.
         
         Args:
-            provider (str): The LLM provider ("together", "ollama", or "openai")
+            provider (str): The LLM provider ("together", "ollama", "openai", or "gemini")
             api_key (str): API key for the provider
             model (Optional[str]): Model name
             
         Raises:
             ValueError: If provider is not supported or configuration is invalid
         """
-        provider = provider.lower()
-        if provider not in ["together", "ollama", "openai"]:
+        provider = provider.lower().strip()
+        if provider not in ["together", "ollama", "openai", "gemini"]:
             raise ValueError(
                 f"Unsupported provider: {provider}. "
-                "Supported providers are: together, ollama, openai"
+                "Supported providers are: together, ollama, openai, gemini"
             )
             
         # Validate required configuration
-        if provider in ["together", "openai"] and not api_key:
+        if provider in ["together", "openai", "gemini"] and not api_key:
             raise ValueError(f"{provider} requires an API key")
             
         self.provider = provider
@@ -38,6 +38,7 @@ class LLMClient:
             "together": "mistralai/Mixtral-8x7B-Instruct-v0.1",
             "ollama": "llama2",
             "openai": "gpt-3.5-turbo",
+            "gemini": "gemini-2.0-flash",
         }
         
         # Select model if not provided
@@ -61,6 +62,8 @@ class LLMClient:
             return self._call_ollama(prompt, temperature, max_tokens)
         elif self.provider == "openai":
             return self._call_openai(prompt, temperature, max_tokens)
+        elif self.provider == "gemini":
+            return self._call_gemini(prompt, temperature, max_tokens)
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
     
@@ -188,6 +191,125 @@ class LLMClient:
             raise Exception(f"API call failed: {response.text}")
         
         return response.json()["choices"][0]["message"]["content"]
+        
+    def _call_gemini(self, prompt: str, temperature: float, max_tokens: int) -> str:
+        """Call Google Gemini API.
+        
+        Args:
+            prompt (str): The prompt to send
+            temperature (float): Temperature for generation
+            max_tokens (int): Maximum tokens to generate
+            
+        Returns:
+            str: The generated response
+            
+        Raises:
+            ValueError: If API key is invalid or missing
+            Exception: If the API call fails for other reasons
+        """
+        # Validate API key first
+        if not self.api_key or self.api_key == "YOUR_GEMINI_API_KEY_HERE":
+            raise ValueError(
+                "Invalid Gemini API key. Please set a valid API key in your .env file:\n"
+                "1. Get an API key from https://ai.google.dev/\n"
+                "2. Set SSA_LLM_API_KEY=your_api_key_here in .env\n"
+                "3. Or switch to Ollama by setting SSA_LLM_PROVIDER=ollama"
+            )
+            
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        # Use the model from config, but ensure it's a valid model name
+        model = self.model
+        
+        # Gemini API endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        
+        # Add API key as query parameter
+        url += f"?key={self.api_key}"
+        
+        # Prepare the request data
+        data = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_tokens,
+                "topP": 0.95,
+                "topK": 40
+            }
+        }
+        
+        try:
+            response = requests.post(
+                url,
+                headers=headers,
+                json=data
+            )
+            
+            if response.status_code == 400:
+                response_json = response.json()
+                error_message = response_json.get("error", {}).get("message", "Unknown error")
+                
+                if "API key not valid" in error_message:
+                    raise ValueError(
+                        "Invalid Gemini API key. Please set a valid API key in your .env file:\n"
+                        "1. Get an API key from https://ai.google.dev/\n"
+                        "2. Set SSA_LLM_API_KEY=your_api_key_here in .env\n"
+                        "3. Or switch to Ollama by setting SSA_LLM_PROVIDER=ollama"
+                    )
+                else:
+                    raise Exception(f"Gemini API error: {error_message}")
+            
+            elif response.status_code == 429:
+                response_json = response.json()
+                error_message = response_json.get("error", {}).get("message", "Rate limit exceeded")
+                
+                # Extract retry delay if available
+                retry_delay = "60 seconds"
+                for detail in response_json.get("error", {}).get("details", []):
+                    if "@type" in detail and "RetryInfo" in detail["@type"]:
+                        if "retryDelay" in detail:
+                            retry_delay = detail["retryDelay"]
+                
+                raise ValueError(
+                    f"Gemini API rate limit exceeded. Please try again after {retry_delay}.\n"
+                    "Options:\n"
+                    "1. Wait and try again later\n"
+                    "2. Switch to Ollama by setting SSA_LLM_PROVIDER=ollama in your .env file\n"
+                    "3. Upgrade your Gemini API quota at https://ai.google.dev/"
+                )
+            
+            elif response.status_code != 200:
+                raise Exception(f"Gemini API call failed with status {response.status_code}: {response.text}")
+            
+            response_json = response.json()
+            
+            # Extract the generated text from the response
+            if "candidates" in response_json and len(response_json["candidates"]) > 0:
+                candidate = response_json["candidates"][0]
+                if "content" in candidate and "parts" in candidate["content"]:
+                    parts = candidate["content"]["parts"]
+                    if len(parts) > 0 and "text" in parts[0]:
+                        return parts[0]["text"]
+            
+            raise Exception("Failed to extract text from Gemini API response")
+            
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Network error when calling Gemini API: {str(e)}")
+        except ValueError as e:
+            # Re-raise ValueError for API key issues
+            raise
+        except Exception as e:
+            raise Exception(f"Error calling Gemini API: {str(e)}")
 
 
 # LangChain-compatible wrapper for the LLMClient

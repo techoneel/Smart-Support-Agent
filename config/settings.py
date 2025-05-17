@@ -59,9 +59,14 @@ class Config:
         Returns:
             Config: Configuration object
         """
+        # Get provider and strip any whitespace
+        provider = os.getenv("SSA_LLM_PROVIDER", "ollama")
+        if provider:
+            provider = provider.strip()
+            
         return cls(
             channel=os.getenv("SSA_CHANNEL", "cli"),
-            llm_provider=os.getenv("SSA_LLM_PROVIDER", "ollama"),
+            llm_provider=provider,
             llm_api_key=os.getenv("SSA_LLM_API_KEY", ""),
             llm_model=os.getenv("SSA_LLM_MODEL"),
             vector_db_path=os.getenv("SSA_VECTOR_DB_PATH"),

@@ -21,11 +21,39 @@ Smart Support Agent is a RAG (Retrieval Augmented Generation) system designed to
 ### Prerequisites
 
 - [Python 3.9+](https://www.python.org/downloads/)
-- [`requirements.txt`](./requirements.txt) - Required python libraries
-- [Ollama 0.6.7+](https://ollama.com/download)
-- [llama2](https://ollama.com/library/llama2)
+- One of the following LLM providers:
+  - [Ollama](https://ollama.com/download) (local, no API key required)
+  - [Google Gemini API key](https://ai.google.dev/) (cloud-based)
+  - [OpenAI API key](https://platform.openai.com/) (cloud-based)
+  - [Together.ai API key](https://together.ai/) (cloud-based)
 
 ### Installation
+
+#### Automatic Setup (Recommended)
+
+Choose the appropriate setup script for your operating system:
+
+**Windows:**
+```
+setup.bat
+```
+or with PowerShell:
+```
+.\dev-setup.ps1
+```
+
+**macOS/Linux:**
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+**Using Make (Unix systems):**
+```bash
+make setup
+```
+
+#### Manual Setup
 
 ```bash
 # Clone the repository
@@ -37,7 +65,8 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -e .
+pip install -e ".[dev]"  # For development
 
 # Set up environment variables
 cp .env.example .env
@@ -46,63 +75,128 @@ cp .env.example .env
 
 ### Configuration
 
-Edit `config/settings.py` or use environment variables to configure:
+Edit `.env` to configure your LLM provider:
 
-- LLM provider and API keys
-- Vector database settings
-- Input/output channels
-- Logging preferences
+#### For Ollama (local, no API key required):
+```
+SSA_LLM_PROVIDER=ollama
+SSA_LLM_API_KEY=
+SSA_LLM_MODEL=llama2
+```
 
-### Testing Environment
+#### For Google Gemini:
+```
+SSA_LLM_PROVIDER=gemini
+SSA_LLM_API_KEY=your_gemini_api_key_here
+SSA_LLM_MODEL=gemini-2.0-flash
+```
 
-1. Run the full test suite:
-   ```powershell
-   python -m pytest
-   ```
+#### For OpenAI:
+```
+SSA_LLM_PROVIDER=openai
+SSA_LLM_API_KEY=your_openai_api_key_here
+SSA_LLM_MODEL=gpt-3.5-turbo
+```
 
-2. Test the configuration:
-   ```powershell
-   python cli_test.py config
-   ```
+### CLI Commands
 
-3. Test LLM integration:
-   ```powershell
-   python test_llm.py --prompt "What are the main features of a RAG system?"
-   ```
+The Smart Support Agent provides several CLI commands to help you manage and use the system:
 
-### Running the CLI Version
+```bash
+# Show all available commands
+python cli/main.py --help
+```
 
-1. Start the CLI interface:
-   ```powershell
-   python cli/main.py
-   ```
+#### Setup Command
 
-2. Enter your queries when prompted:
-   ```
-   Ask a question: How do I configure the vector database?
-   ```
+Use the setup command to ingest documents into your knowledge base:
 
-3. Rate the responses to help improve the system:
-   ```
-   Rate this response (1-5): 5
-   ```
+```bash
+python cli/main.py setup [--debug] [--no-js]
+```
 
-### Ingesting Documents
+Options:
+- `--debug`: Enable debug mode with detailed error messages
+- `--no-js`: Disable JavaScript rendering for web scraping
 
-1. Add PDFs to your knowledge base:
-   ```powershell
-   python -m core.ingestor.pdf_parser --path "path/to/your/docs"
-   ```
+This interactive command will:
+- Guide you through adding PDF documents (files or directories)
+- Help you scrape web content (single pages or entire sites)
+- Process and index all content for retrieval
 
-2. Scrape web content:
-   ```powershell
-   python -m core.ingestor.web_scraper --url "https://your-documentation-site.com"
-   ```
+#### Run Command
 
-3. Monitor the vector index:
-   ```powershell
-   python -m core.retriever.index_builder --status
-   ```
+Start the interactive support agent:
+
+```bash
+python cli/main.py run [OPTIONS]
+```
+
+Options:
+- `--config-path CONFIG_PATH`: Path to a custom configuration file
+- `--provider PROVIDER`: Override LLM provider (ollama, gemini, openai, together)
+- `--model MODEL`: Override LLM model
+- `--api-key API_KEY`: Override API key for cloud providers
+
+Examples:
+```bash
+# Run with default configuration
+python cli/main.py run
+
+# Run with Gemini API
+python cli/main.py run --provider gemini --api-key YOUR_API_KEY --model gemini-2.0-flash
+
+# Run with OpenAI
+python cli/main.py run --provider openai --api-key YOUR_API_KEY --model gpt-3.5-turbo
+```
+
+#### View Index Command
+
+View and export the FAISS index for visualization:
+
+```bash
+python cli/main.py view_index [OPTIONS]
+```
+
+Options:
+- `--export FILENAME`: Export index to a JSON file for visualization
+- `--limit N`: Limit the number of vectors to display/export (default: 10)
+- `--index-path PATH`: Path to the FAISS index file
+
+#### Stats Command
+
+View usage statistics for your support agent:
+
+```bash
+python cli/main.py stats
+```
+
+### Development
+
+#### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=core --cov=cli --cov=config --cov=factory
+
+# On Unix systems with Make
+make test
+```
+
+#### Linting and Formatting
+
+```bash
+# Run linters
+flake8 core cli config factory
+black core cli config factory
+mypy core cli config factory
+
+# On Unix systems with Make
+make lint
+```
 
 ## Architecture
 
@@ -128,21 +222,40 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed information about the system
 2. Implement the chunking and extraction logic
 3. Pass the extracted content to the index builder
 
-## Roadmap
+### Adding New LLM Providers
 
-- [X] CLI interface
-- [ ] Text and PDF ingestion
-- [ ] Vector search with FAISS
-- [X] LLM integration
-- [ ] Feedback collection
-- [ ] WhatsApp integration
-- [ ] Custom web UI
-- [ ] Persistent vector database
-- [ ] Fine-tuning based on feedback
+1. Update the `LLMClient` class in `core/llm/llm_client.py`
+2. Implement the provider-specific API call method
+3. Update the configuration to use your new provider
 
-## Contributing
+## Troubleshooting
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Ollama Connection Issues
+
+If you encounter errors connecting to Ollama:
+
+1. Make sure Ollama is installed and running
+2. Check if the model is available with `ollama list`
+3. Pull the model if needed with `ollama pull llama2`
+4. Consider using a cloud provider instead with the `--provider` option
+
+### PDF Processing Issues
+
+If you encounter errors processing PDFs:
+
+1. Use the `--debug` flag to get detailed error information
+2. Check if the PDF is password-protected or encrypted
+3. For scanned PDFs, use OCR software to extract text first
+4. Try converting the PDF to a different format
+
+### Web Scraping Issues
+
+If you encounter errors with web scraping:
+
+1. Try using the `--no-js` flag to disable JavaScript rendering
+2. Check if the website allows scraping (some sites block bots)
+3. Verify your internet connection
+4. Try a different URL or website
 
 ## License
 

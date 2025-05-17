@@ -1,4 +1,5 @@
 import os
+import traceback
 from typing import Dict, Any, List
 from pypdf import PdfReader
 
@@ -37,17 +38,51 @@ class PDFParser:
             raise FileNotFoundError(f"PDF file not found: {file_path}")
             
         try:
-            reader = self._create_reader(file_path)
-            text = ""
+            # Open file with binary mode to handle potential encoding issues
+            with open(file_path, 'rb') as file:
+                try:
+                    reader = PdfReader(file)
+                    text = ""
+                    
+                    # Check if PDF is encrypted
+                    if reader.is_encrypted:
+                        raise ValueError("PDF is encrypted and requires a password to open.")
+                    
+                    # Extract text from each page
+                    for page_num, page in enumerate(reader.pages):
+                        try:
+                            page_text = page.extract_text() or ""
+                            text += page_text + "\n\n"
+                        except Exception as page_error:
+                            # Log page-specific error but continue with other pages
+                            print(f"Warning: Could not extract text from page {page_num+1}: {str(page_error)}")
+                    
+                    # Return empty string if no text was extracted
+                    if not text.strip():
+                        return "No extractable text found in PDF."
+                    
+                    return text.strip()
+                except Exception as pdf_error:
+                    # Get detailed error information
+                    error_details = traceback.format_exc()
+                    print(f"PDF parsing error details: {error_details}")
+                    
+                    # Provide more helpful error message
+                    error_msg = str(pdf_error)
+                    if "file has not been decrypted" in error_msg.lower():
+                        raise ValueError("PDF is encrypted and requires a password to open.")
+                    elif "not a pdf" in error_msg.lower() or "EOF marker not found" in error_msg.lower():
+                        raise ValueError("The file is not a valid PDF document.")
+                    else:
+                        raise ValueError(f"Failed to parse PDF: {error_msg}")
             
-            # Extract text from each page
-            for page in reader.pages:
-                text += page.extract_text() + "\n\n"
-            
-            return text.strip()
-            
+        except FileNotFoundError:
+            raise
+        except ValueError:
+            raise
         except Exception as e:
-            raise ValueError(f"Failed to parse PDF: {str(e)}")
+            # Catch any other unexpected errors
+            raise ValueError(f"Unexpected error processing PDF: {str(e)}")
     
     def extract_metadata(self, file_path: str) -> Dict[str, Any]:
         """Extract metadata from a PDF file.
@@ -66,19 +101,21 @@ class PDFParser:
             raise FileNotFoundError(f"PDF file not found: {file_path}")
             
         try:
-            reader = self._create_reader(file_path)
-            metadata = reader.metadata
-            
-            # Convert to regular dictionary and clean up
-            return {
-                "title": metadata.get("/Title", ""),
-                "author": metadata.get("/Author", ""),
-                "subject": metadata.get("/Subject", ""),
-                "keywords": metadata.get("/Keywords", ""),
-                "creator": metadata.get("/Creator", ""),
-                "producer": metadata.get("/Producer", ""),
-                "pages": len(reader.pages)
-            }
+            # Open file with binary mode
+            with open(file_path, 'rb') as file:
+                reader = PdfReader(file)
+                metadata = reader.metadata or {}
+                
+                # Convert to regular dictionary and clean up
+                return {
+                    "title": metadata.get("/Title", "") or "",
+                    "author": metadata.get("/Author", "") or "",
+                    "subject": metadata.get("/Subject", "") or "",
+                    "keywords": metadata.get("/Keywords", "") or "",
+                    "creator": metadata.get("/Creator", "") or "",
+                    "producer": metadata.get("/Producer", "") or "",
+                    "pages": len(reader.pages)
+                }
             
         except Exception as e:
             raise ValueError(f"Failed to extract metadata: {str(e)}")
@@ -99,6 +136,7 @@ class PDFParser:
             raise NotADirectoryError(f"Directory not found: {directory}")
             
         documents = []
+        errors = []
         
         # Process each PDF file
         for root, _, files in os.walk(directory):
@@ -114,8 +152,17 @@ class PDFParser:
                             "text": text,
                             "metadata": metadata
                         })
-                    except (FileNotFoundError, ValueError):
-                        # Skip files with errors but continue processing
+                    except (FileNotFoundError, ValueError) as e:
+                        # Record errors but continue processing
+                        errors.append(f"{file_path}: {str(e)}")
                         continue
+        
+        # Print summary of errors if any
+        if errors:
+            print(f"Encountered {len(errors)} errors while processing directory:")
+            for error in errors[:5]:  # Show first 5 errors
+                print(f"- {error}")
+            if len(errors) > 5:
+                print(f"... and {len(errors) - 5} more errors")
                         
         return documents

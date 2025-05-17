@@ -3,6 +3,8 @@ import requests
 from bs4 import BeautifulSoup
 from requests_html import HTMLSession
 from urllib.parse import urljoin, urlparse
+import os
+import time
 
 class WebScraper:
     """Scraper for extracting content from web pages."""
@@ -14,10 +16,26 @@ class WebScraper:
             user_agent (Optional[str]): Custom user agent string
             session (Optional[Any]): Custom session for testing
         """
-        from requests_html import HTMLSession
-        self.session = session or HTMLSession()
+        # Flag to track if we're using a simple session (no JS rendering)
+        self.using_simple_session = False
+        
+        self.session = session
+        if not self.session:
+            try:
+                # Skip HTMLSession and use simple requests directly
+                self.session = requests.Session()
+                self.using_simple_session = True
+            except Exception as e:
+                print(f"Using simple requests session: {str(e)}")
+                self.session = requests.Session()
+                self.using_simple_session = True
+                
+        # Set a user agent to avoid being blocked
+        default_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         if user_agent:
             self.session.headers['User-Agent'] = user_agent
+        else:
+            self.session.headers['User-Agent'] = default_ua
     
     def extract_content(self, url: str) -> Dict[str, Any]:
         """Extract content from a web page.
@@ -38,14 +56,27 @@ class WebScraper:
                 raise ValueError(f"Invalid URL: {url}")
             
             # Fetch page
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
-            # Render JavaScript if needed
-            response.html.render(timeout=20)
+            # Get HTML content based on session type
+            if self.using_simple_session:
+                # Simple requests session - no JS rendering
+                html_content = response.text
+            else:
+                # Try to render JavaScript if possible
+                try:
+                    if hasattr(response, 'html') and hasattr(response.html, 'render'):
+                        response.html.render(timeout=20)
+                        html_content = response.html.html
+                    else:
+                        html_content = response.text
+                except Exception as e:
+                    print(f"JavaScript rendering failed, using static HTML: {str(e)}")
+                    html_content = response.text
             
             # Parse content
-            soup = BeautifulSoup(response.html.html, 'html.parser')
+            soup = BeautifulSoup(html_content, 'html.parser')
             
             # Remove unwanted elements
             for element in soup.select('script, style, nav, footer, header'):
@@ -56,6 +87,33 @@ class WebScraper:
             
             # Clean and normalize text
             content = " ".join(main_content.stripped_strings) if main_content else ""
+            
+            # Ensure we have some content
+            if not content.strip():
+                print(f"Warning: No content extracted from {url}")
+                # Try to get at least some text from the page
+                content = " ".join(soup.stripped_strings)
+                
+                # If still no content, try a different approach
+                if not content.strip():
+                    # Try to extract all paragraph text
+                    paragraphs = soup.find_all('p')
+                    if paragraphs:
+                        content = " ".join(p.get_text() for p in paragraphs)
+                    
+                    # If still no content, try to extract all div text
+                    if not content.strip():
+                        divs = soup.find_all('div')
+                        if divs:
+                            content = " ".join(d.get_text() for d in divs)
+                            
+                    # If still no content, use the entire HTML text
+                    if not content.strip():
+                        content = soup.get_text()
+                        
+                    # If absolutely no content, use a placeholder
+                    if not content.strip():
+                        content = f"No extractable content from {url}"
             
             # Extract metadata
             metadata = {
@@ -129,6 +187,9 @@ class WebScraper:
                     and urlparse(url).netloc in allowed_domains
                 ]
                 to_crawl.extend(new_urls)
+                
+                # Be nice to the server
+                time.sleep(1)
                 
             except ValueError:
                 # Skip failed URLs
